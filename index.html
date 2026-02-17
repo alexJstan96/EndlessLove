@@ -1,0 +1,208 @@
+Smart AX
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ASSIEME - AR Viewer</title>
+
+<!-- Model Viewer -->
+<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+
+<style>
+body {
+margin: 0;
+background: #000;
+display: flex;
+flex-direction: column;
+align-items: center;
+color: white;
+font-family: sans-serif;
+}
+
+model-viewer {
+width: 95vw;
+height: 75vh;
+}
+
+/* Pulsante AR grande */
+model-viewer::part(default-ar-button) {
+width: 100px;
+height: 100px;
+border-radius: 50%;
+background-color: white;
+color: black;
+font-size: 2rem;
+}
+
+/* Pulsante Play / Pause */
+#animBtn {
+margin: 10px;
+padding: 12px 24px;
+font-size: 1.1rem;
+border-radius: 12px;
+border: none;
+cursor: pointer;
+background: #444;
+color: white;
+}
+
+/* Dropdown animazioni */
+#animSelect {
+padding: 10px;
+font-size: 1rem;
+border-radius: 10px;
+margin-bottom: 10px;
+}
+
+/* Contenitore controlli */
+.controls-section {
+display: flex;
+align-items: center;
+margin: 10px 0; /*Distanza tra una colonna titoli e l'altra in verticale */
+width: 95vw;
+}
+
+.controls-section h3 {
+margin-right: 15px;
+font-size: 1.5rem;
+min-width: 160px;
+}
+
+.controls {
+display: flex;
+flex-wrap: wrap;
+gap: 10px;
+}
+
+  button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 1rem;
+      color: white;
+      min-width: 80px;
+  }
+
+.green { background: green; }
+.blue { background: blue; }
+.yellow { background: yellow; color: gray;}
+.lightgray { background: lightgray; color: black; }
+.darkgray { background: dimgray; }
+.red { background: red; }
+.orange { background: orange; color: white;}
+</style>
+</head>
+<body>
+
+<!-- MODEL VIEWER -->
+<model-viewer id="viewer"
+src="linea lunga_V1.glb"
+ar
+ar-modes="webxr scene-viewer quick-look"
+camera-controls
+auto-rotate
+shadow-intensity="0"
+exposure="0.5"
+alt="ASSIEME 3D Model">
+</model-viewer>
+
+<!-- SELECT ANIMAZIONE -->
+<select id="animSelect" onchange="selectAnimation()">
+<option disabled selected>Seleziona animazione</option>
+</select>
+
+<!-- PLAY / PAUSE -->
+<button id="animBtn" onclick="toggleAnimation()">
+▶ Play animation
+</button>
+
+<!-- Prima fila: STRUCTURE COLOR -->
+<div class="controls-section">
+<h3>Structure Color</h3>
+<div class="controls">
+<button class="color green" onclick="changeColor(0, [0, 0.1, 0, 1])">Verde</button>
+<button class="color blue" onclick="changeColor(0, [0, 0, 0.18, 1])">Blu</button>
+<button class="color orange" onclick="changeColor(0, [1, 0.12, 0, 1])">Arancio</button>
+<button class="color lightgray" onclick="changeColor(0, [0.55, 0.55, 0.55, 1])">Grigio chiaro</button>
+<button class="color darkgray" onclick="changeColor(0, [0.25, 0.25, 0.25, 1])">Grigio scuro</button>
+<button class="color red" onclick="changeColor(0, [0.22, 0, 0, 1])">Rosso</button>
+</div>
+</div>
+
+<!-- MOBILE PARTS COLOR -->
+<div class="controls-section">
+<h3>Mobile Parts Color</h3>
+<div class="controls">
+<button class="color green" onclick="changeColor(1, [0, 0.1, 0, 1])">Verde</button>
+<button class="color blue" onclick="changeColor(1, [0, 0, 1, 1])">Blu</button>
+<button class="color yellow" onclick="changeColor(1, [1, 1, 0, 1])">Giallo</button>
+<button class="color lightgray" onclick="changeColor(1, [0.55, 0.55, 0.55, 1])">Grigio chiaro</button>
+<button class="color darkgray" onclick="changeColor(1, [0.33, 0.33, 0.33, 1])">Grigio scuro</button>
+<button class="color red" onclick="changeColor(1, [1, 0, 0, 1])">Rosso</button>
+</div>
+</div>
+
+<!-- SCRIPT -->
+<script>
+const modelViewer = document.querySelector('#viewer');
+const animBtn = document.getElementById('animBtn');
+const animSelect = document.getElementById('animSelect');
+
+/* Carica animazioni */
+modelViewer.addEventListener('load', () => {
+const animations = modelViewer.availableAnimations;
+
+animations.forEach(anim => {
+const option = document.createElement('option');
+option.value = anim;
+option.textContent = anim;
+animSelect.appendChild(option);
+});
+
+if (animations.length > 0) {
+modelViewer.animationName = animations[0];
+}
+});
+
+/* Play / Pause */
+function toggleAnimation() {
+if (modelViewer.paused) {
+modelViewer.play();
+animBtn.textContent = "⏸ Pause animation";
+} else {
+modelViewer.pause();
+animBtn.textContent = "▶ Play animation";
+}
+}
+
+/* Cambio animazione */
+function selectAnimation() {
+modelViewer.pause();
+modelViewer.animationName = animSelect.value;
+modelViewer.play();
+animBtn.textContent = "⏸ Pause animation";
+}
+
+/* Cambio colore materiali */
+function changeColor(materialIndex, rgba) {
+const material = modelViewer.model.materials[materialIndex];
+if (material && material.pbrMetallicRoughness) {
+material.pbrMetallicRoughness.setBaseColorFactor(rgba);
+}
+}
+</script>
+
+</body>
+
+</html>
+
+
+
+
+
+
+
+
+
+
