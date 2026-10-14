@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#08090c">
+  <title>Endless Love — Mixed Reality</title>
+
+  <!-- Three.js e gli addon devono usare la stessa versione. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --panel: rgba(18, 20, 28, .96);
+      --border: rgba(255,255,255,.14);
+      --muted: #b5b8c4;
+      --accent: #cf3e60;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+    body { background: #08090c; color: #f7f7fa; }
+    canvas#scene { position: fixed; inset: 0; display: block; width: 100%; height: 100%; z-index: 0; }
+
+    #hud {
+      position: fixed;
+      z-index: 5;
+      top: max(12px, env(safe-area-inset-top));
+      left: max(12px, env(safe-area-inset-left));
+      width: min(365px, calc(100vw - 24px));
+      max-height: calc(100dvh - 100px);
+      overflow-y: auto;
+      padding: 17px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: 0 12px 38px #0008;
+      backdrop-filter: blur(16px);
+    }
+
+    h1 { margin: 0; font-size: 23px; letter-spacing: 1.3px; }
+    .subtitle { margin: 4px 0 14px; color: var(--muted); font-size: 11px; letter-spacing: 1.2px; }
+    h2 { margin: 18px 0 8px; color: #f0a7b7; font-size: 13px; letter-spacing: .65px; }
+    label { display: block; margin: 12px 0 6px; color: var(--muted); font-size: 12px; }
+    select, button { font: inherit; }
+    select {
+      display: block; width: 100%; min-height: 40px; padding: 9px 10px;
+      border: 1px solid var(--border); border-radius: 10px; color: #fff; background: #292c36;
+    }
+    button { color: #fff; cursor: pointer; border: 1px solid var(--border); border-radius: 10px; background: #303440; padding: 10px 12px; }
+    button:hover { filter: brightness(1.12); }
+    button:active { transform: scale(.98); }
+    button:focus-visible, select:focus-visible { outline: 2px solid #f0a7b7; outline-offset: 2px; }
+    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+    .row > button { flex: 1 1 0; }
+    .palette { display: flex; flex-wrap: wrap; gap: 9px; padding: 4px 2px 3px; }
+    .swatch {
+      flex: 0 0 34px !important; width: 34px; min-width: 34px; height: 34px; padding: 0;
+      border-radius: 50%; border: 2px solid rgba(255,255,255,.44); box-shadow: inset 0 0 0 1px #0005;
+    }
+    .swatch.selected { outline: 3px solid #fff; outline-offset: 2px; }
+    #play { background: #a92f4d; }
+    #enterXR {
+      position: fixed; z-index: 8; left: 50%; bottom: max(16px, env(safe-area-inset-bottom));
+      transform: translateX(-50%); border: 0; border-radius: 30px; background: var(--accent);
+      padding: 15px 24px; font-weight: 750; white-space: nowrap; box-shadow: 0 8px 28px #0007;
+    }
+    #enterXR:disabled { cursor: not-allowed; opacity: .55; }
+    #status { margin: 13px 0 0; color: #bcebd0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+    #help { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .small-button { font-size: 12px; }
+
+    /* Il pannello HTML resta fuori dalla sessione XR; in XR appare il pannello 3D. */
+    body.xr #hud, body.xr #enterXR { display: none; }
+
+    @media (max-width: 520px) {
+      #hud { width: min(310px, calc(100vw - 24px)); padding: 13px; }
+      h1 { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <section id="hud" aria-label="Controlli Endless Love">
+    <h1>ENDLESS LOVE</h1>
+    <div class="subtitle">IMMERSIVE MIXED REALITY</div>
+
+    <label for="modelSelect">Modello 3D</label>
+    <select id="modelSelect" aria-label="Seleziona modello"></select>
+
+    <h2>COLORE LETTERE</h2>
+    <div id="lettersPalette" class="palette" aria-label="Palette colore lettere"></div>
+
+    <h2>COLORE CUORE</h2>
+    <div id="heartPalette" class="palette" aria-label="Palette colore cuore"></div>
+
+    <label for="animationSelect">Animazione</label>
+    <select id="animationSelect">
+      <option value="-1">Nessuna animazione</option>
+    </select>
+
+    <div class="row" style="margin-top:9px">
+      <button id="play" type="button">▶ Play animation</button>
+      <button id="pause" type="button">Ⅱ Pausa</button>
+    </div>
+
+    <h2>ROTAZIONE E POSIZIONE</h2>
+    <div class="row">
+      <button id="rotateLeft" type="button">↶ Ruota</button>
+      <button id="rotateRight" type="button">Ruota ↷</button>
+    </div>
+    <div class="row" style="margin-top:7px">
+      <button id="autoRotate" type="button">Rotazione automatica: ON</button>
+    </div>
+    <div class="row" style="margin-top:7px">
+      <button id="smaller" type="button">− Scala</button>
+      <button id="bigger" type="button">+ Scala</button>
+      <button id="reset" type="button">Reset</button>
+    </div>
+
+    <p id="help">
+      In Mixed Reality: punta una superficie e fai pinch oppure premi il grilletto per collocare il modello.
+      Attiva “Sposta modello” dal pannello nel visore per riposizionarlo. Usa il pannello 3D per colori,
+      animazioni, rotazione e scala.
+    </p>
+    <div id="status" role="status" aria-live="polite">Inizializzazione della scena…</div>
+  </section>
+
+  <button id="enterXR" type="button" disabled>Verifica supporto Mixed Reality…</button>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    /* ================================================================
+       CONFIGURAZIONE MODELLO
+       Il sorgente originale usa heart.glb. Per aggiungere altri modelli,
+       inserisci qui i loro nomi ESATTI e i percorsi relativi nel repository.
+       Esempio: { name: 'Secondo modello', url: './secondo.glb' }
+       ================================================================ */
+    const MODELS = [
+      { name: 'Endless Love', url: './heart.glb' }
+      // { name: 'Modello 2', url: './model2.glb' },
+      // { name: 'Modello 3', url: './model3.glb' }
+    ];
+
+    /* Palette compatibili con i fattori RGBA usati nel codice model-viewer.
+       I valori RGB sono fattori di base del materiale GLTF (spazio lineare),
+       non una modifica distruttiva della texture immagine. */
+    const LETTER_COLORS = [
+      { name: 'Verde', css: '#008000', rgba: [0, 0.1, 0, 1] },
+      { name: 'Blu', css: '#0000ff', rgba: [0, 0, 0.18, 1] },
+      { name: 'Arancio', css: '#fd9409', rgba: [1, 0.12, 0, 1] },
+      { name: 'Grigio chiaro', short: 'Chiaro', css: '#c9c9c9', rgba: [0.55, 0.55, 0.55, 1] },
+      { name: 'Grigio scuro', short: 'Scuro', css: '#565656', rgba: [0.25, 0.25, 0.25, 1] },
+      { name: 'Rosso', css: '#fb0007', rgba: [0.22, 0, 0, 1] }
+    ];
+
+    const HEART_COLORS = [
+      { name: 'Verde', css: '#008000', rgba: [0, 0.1, 0, 1] },
+      { name: 'Blu', css: '#0000ff', rgba: [0, 0, 1, 1] },
+      { name: 'Giallo', css: '#ffff0b', rgba: [1, 1, 0, 1] },
+      { name: 'Grigio chiaro', short: 'Chiaro', css: '#c9c9c9', rgba: [0.55, 0.55, 0.55, 1] },
+      { name: 'Grigio scuro', short: 'Scuro', css: '#565656', rgba: [0.33, 0.33, 0.33, 1] },
+      { name: 'Rosso', css: '#fb0007', rgba: [1, 0, 0, 1] }
+    ];
+
+    /* Il sorgente originale usa gli indici 0 e 1.
+       Qui proviamo a recuperarli dall'ordine dei materiali nel GLB.
+       Se un GLB è diverso, cambia gli indici dopo averli verificati in console. */
+    const LETTER_MATERIAL_INDEX = 0;
+    const HEART_MATERIAL_INDEX = 1;
+
+    const $ = (id) => document.getElementById(id);
+    const statusBox = $('status');
+    const enterXRButton = $('enterXR');
+    const modelSelect = $('modelSelect');
+    const animationSelect = $('animationSelect');
+
+    function setStatus(message) {
+      statusBox.textContent = message;
+      console.info('[Endless Love XR]', message);
+    }
+
+    /* ===============================
+       THREE.JS: SCENA E ILLUMINAZIONE
+       =============================== */
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(
+      55, window.innerWidth / window.innerHeight, 0.01, 100
+    );
+    camera.position.set(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: 'high-performance'
+    });
+    renderer.domElement.id = 'scene';
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1;
+    renderer.setClearColor(0x000000, 0);
+    renderer.xr.enabled = true;
+    // Usa 'local' per evitare che Three.js richieda local-floor senza che
+    // questa feature sia stata negoziata nella sessione XR. Il posizionamento
+    // continua a usare le pose world-space restituite da hit-test.
+    renderer.xr.setReferenceSpaceType('local');
+    document.body.appendChild(renderer.domElement);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x626276, 1.8));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.0);
+    keyLight.position.set(2.5, 4, 3);
+    scene.add(keyLight);
+
+    const loader = new GLTFLoader();
+    const clock = new THREE.Clock();
+    const raycaster = new THREE.Raycaster();
+    const tmpDirection = new THREE.Vector3();
+    const tmpOrigin = new THREE.Vector3();
+    const tmpQuaternion = new THREE.Quaternion();
+    const tmpOffset = new THREE.Vector3();
+    const tmpDragTarget = new THREE.Vector3();
+
+    let modelAnchor = null;       // Pivot esterno: rotazione/scala/posizione
+    let modelScene = null;        // Scena del GLB vera e propria
+    let mixer = null;
+    let clips = [];
+    let actions = [];
+    let activeAction = null;
+    let materialGroups = [];      // indice GLTF -> lista di Material Three.js
+    let currentModelIndex = 0;
+    let currentScale = 1;
+    let autoRotatePreview = true;
+    let autoRotateXR = false;
+    let placementMode = true;
+    let isPlaced = false;
+    let xrSession = null;
+    let xrSupported = false; // risultato memorizzato prima del clic dell'utente
+    let gazeHitTestSource = null;
+    let currentLetterColor = -1;
+    let currentHeartColor = -1;
+    const pointerStates = new Map();
+    const controllers = [];
+    const panelButtons = [];
+
+    /* ===============================
+       INTERFACCIA HTML (DESKTOP / 2D)
+       =============================== */
+    function populateModelSelect() {
+      MODELS.forEach((item, index) => modelSelect.add(new Option(item.name, String(index))));
+    }
+
+    function makeHtmlPalette(containerId, palette, part) {
+      const container = $(containerId);
+      palette.forEach((color, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'swatch';
+        button.style.background = color.css;
+        button.title = color.name;
+        button.setAttribute('aria-label', `${part === 'letters' ? 'Colore lettere' : 'Colore cuore'}: ${color.name}`);
+        button.setAttribute('aria-pressed', 'false');
+        button.addEventListener('click', () => applyPartColor(part, index));
+        container.appendChild(button);
+      });
+    }
+
+    function updateHtmlPaletteSelection(part, selectedIndex) {
+      const id = part === 'letters' ? 'lettersPalette' : 'heartPalette';
+      [...$(id).querySelectorAll('button')].forEach((button, index) => {
+        const selected = index === selectedIndex;
+        button.classList.toggle('selected', selected);
+        button.setAttribute('aria-pressed', String(selected));
+      });
+    }
+
+    populateModelSelect();
+    makeHtmlPalette('lettersPalette', LETTER_COLORS, 'letters');
+    makeHtmlPalette('heartPalette', HEART_COLORS, 'heart');
+
+    /* ===============================
+       MATERIALI GLTF: MAPPATURA INDICI
+       =============================== */
+    function findMaterialGroups(gltf, gltfScene) {
+      const allMaterials = [];
+      const seen = new Set();
+      const byGltfIndex = new Map();
+
+      gltfScene.traverse((object) => {
+        if (!object.isMesh || !object.material) return;
+        const list = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of list) {
+          if (!material) continue;
+          if (!seen.has(material)) {
+            seen.add(material);
+            allMaterials.push(material);
+          }
+          // GLTFLoader conserva un'associazione tra il materiale Three.js
+          // e l'indice originale nel JSON GLTF, quando disponibile.
+          const association = gltf.parser?.associations?.get(material);
+          const index = association?.materials;
+          if (Number.isInteger(index)) {
+            if (!byGltfIndex.has(index)) byGltfIndex.set(index, []);
+            if (!byGltfIndex.get(index).includes(material)) byGltfIndex.get(index).push(material);
+          }
+        }
+      });
+
+      const jsonCount = gltf.parser?.json?.materials?.length ?? 0;
+      if (jsonCount > 0 && byGltfIndex.size > 0) {
+        const length = Math.max(jsonCount, ...[...byGltfIndex.keys()].map(i => i + 1));
+        const groups = Array.from({ length }, (_, index) => byGltfIndex.get(index) || []);
+        // I materiali non associati vengono conservati dopo gli indici GLTF.
+        const indexed = new Set(groups.flat());
+        for (const material of allMaterials) {
+          if (!indexed.has(material)) groups.push([material]);
+        }
+        return groups;
+      }
+
+      // Fallback: ordine di prima comparsa nella gerarchia del modello.
+      return allMaterials.map(material => [material]);
+    }
+
+    function materialsAt(index) {
+      return materialGroups[index] || [];
+    }
+
+    function applyPartColor(part, paletteIndex) {
+      const palette = part === 'letters' ? LETTER_COLORS : HEART_COLORS;
+      const materialIndex = part === 'letters'
+        ? LETTER_MATERIAL_INDEX
+        : HEART_MATERIAL_INDEX;
+      const targets = materialsAt(materialIndex);
+      const choice = palette[paletteIndex];
+
+      if (!choice) return;
+      if (!targets.length) {
+        setStatus(`Non trovo il materiale ${materialIndex} per ${part === 'letters' ? 'le lettere' : 'il cuore'}. Controlla gli indici nel codice.`);
+        console.warn('Materiali disponibili per indice:', materialGroups.map((group, index) => ({
+          gltfIndex: index,
+          names: group.map(material => material.name || '(senza nome)')
+        })));
+        return;
+      }
+
+      // È lo stesso principio di setBaseColorFactor(rgba) in model-viewer:
+      // il fattore colore viene moltiplicato per l'eventuale texture esistente.
+      const [r, g, b, alpha] = choice.rgba;
+      targets.forEach(material => {
+        if (material.color) material.color.setRGB(r, g, b, THREE.LinearSRGBColorSpace);
+        material.opacity = alpha;
+        material.transparent = alpha < 1;
+        material.needsUpdate = true;
+      });
+
+      if (part === 'letters') currentLetterColor = paletteIndex;
+      else currentHeartColor = paletteIndex;
+
+      updateHtmlPaletteSelection(part, paletteIndex);
+      updateXRPaletteSelection(part, paletteIndex);
+      setStatus(`${part === 'letters' ? 'Lettere' : 'Cuore'}: ${choice.name}`);
+    }
+
+    /* ===============================
+       ANIMAZIONI GLTF
+       =============================== */
+    function rebuildAnimationSelect() {
+      animationSelect.replaceChildren(new Option('Nessuna animazione', '-1'));
+      clips.forEach((clip, index) => {
+        animationSelect.add(new Option(clip.name || `Animazione ${index + 1}`, String(index)));
+      });
+      animationSelect.value = clips.length ? '0' : '-1';
+    }
+
+    function setAnimation(index, shouldPlay = true) {
+      if (!mixer) return;
+      if (activeAction) activeAction.stop();
+      activeAction = null;
+
+      if (index < 0 || index >= clips.length) {
+        animationSelect.value = '-1';
+        syncPlayButtons();
+        setStatus('Animazione disattivata.');
+        return;
+      }
+
+      activeAction = mixer.clipAction(clips[index]);
+      activeAction.reset();
+      activeAction.paused = !shouldPlay;
+      activeAction.play();
+      animationSelect.value = String(index);
+      syncPlayButtons();
+      setStatus(`Animazione: ${clips[index].name || `Animazione ${index + 1}`}`);
+    }
+
+    function cycleAnimation(direction) {
+      if (!clips.length) {
+        setStatus('Questo modello non contiene animazioni.');
+        return;
+      }
+      const current = Number(animationSelect.value);
+      const next = current < 0
+        ? (direction >= 0 ? 0 : clips.length - 1)
+        : (current + direction + clips.length) % clips.length;
+      setAnimation(next, true);
+    }
+
+    function toggleAnimation() {
+      if (!clips.length || !mixer) {
+        setStatus('Questo modello non contiene animazioni.');
+        return;
+      }
+      if (!activeAction) {
+        setAnimation(Math.max(0, Number(animationSelect.value)), true);
+        return;
+      }
+      activeAction.paused = !activeAction.paused;
+      syncPlayButtons();
+      setStatus(activeAction.paused ? 'Animazione in pausa.' : 'Animazione in riproduzione.');
+    }
+
+    function syncPlayButtons() {
+      const playing = Boolean(activeAction && !activeAction.paused);
+      $('play').textContent = playing ? '▶ Riavvia / riprendi' : '▶ Play animation';
+      $('pause').textContent = playing ? 'Ⅱ Pausa' : 'Ⅱ In pausa';
+      panelButtons.forEach(button => {
+        if (button.userData.role === 'play') {
+          button.userData.setLabel(playing ? 'Pausa' : 'Play');
+        }
+      });
+    }
+
+    animationSelect.addEventListener('change', () => {
+      setAnimation(Number(animationSelect.value), true);
+    });
+    $('play').addEventListener('click', toggleAnimation);
+    $('pause').addEventListener('click', () => {
+      if (activeAction) {
+        activeAction.paused = true;
+        syncPlayButtons();
+        setStatus('Animazione in pausa.');
+      }
+    });
+
+    /* ===============================
+       CARICAMENTO / CAMBIO MODELLO
+       =============================== */
+    function disposeModel(object) {
+      object.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          const list = Array.isArray(child.material) ? child.material : [child.material];
+          list.forEach(material => {
+            // Le texture del GLB possono essere condivise all'interno del modello.
+            // Vengono liberate quando il modello viene rimosso definitivamente.
+            for (const value of Object.values(material)) {
+              if (value && value.isTexture) value.dispose();
+            }
+            material.dispose();
+          });
+        }
+      });
+    }
+
+    async function loadModel(index) {
+      if (!Number.isInteger(index) || !MODELS[index]) return;
+      currentModelIndex = index;
+      modelSelect.value = String(index);
+      setStatus(`Caricamento modello: ${MODELS[index].name}…`);
+
+      if (modelAnchor) {
+        scene.remove(modelAnchor);
+        disposeModel(modelAnchor);
+      }
+      modelAnchor = null;
+      modelScene = null;
+      mixer = null;
+      clips = [];
+      actions = [];
+      activeAction = null;
+      materialGroups = [];
+      currentLetterColor = -1;
+      currentHeartColor = -1;
+      isPlaced = false;
+      placementMode = true;
+      updateMoveButtonLabels();
+      updateHtmlPaletteSelection('letters', -1);
+      updateHtmlPaletteSelection('heart', -1);
+
+      try {
+        const gltf = await loader.loadAsync(MODELS[index].url);
+        modelScene = gltf.scene;
+        modelAnchor = new THREE.Group();
+        modelAnchor.name = `Anchor-${MODELS[index].name}`;
+        modelAnchor.add(modelScene);
+        modelAnchor.scale.setScalar(currentScale = 1);
+        modelAnchor.visible = !renderer.xr.isPresenting;
+        modelAnchor.position.set(0, 0, -1.5);
+        scene.add(modelAnchor);
+
+        mixer = new THREE.AnimationMixer(modelScene);
+        clips = gltf.animations || [];
+        actions = clips.map(clip => mixer.clipAction(clip));
+        rebuildAnimationSelect();
+
+        materialGroups = findMaterialGroups(gltf, modelScene);
+        console.table(materialGroups.map((group, index) => ({
+          materialIndex: index,
+          names: group.map(material => material.name || '(senza nome)').join(', ') || '(non usato)'
+        })));
+
+        // Applica le scelte iniziali senza obbligare il modello ad avere
+        // materiali con nomi particolari: si usano gli indici del GLB.
+        setStatus(`Modello pronto: ${MODELS[index].name}. Materiali GLTF: ${materialGroups.length}; animazioni: ${clips.length}.`);
+        updateSelectedModelButtons();
+        syncPlayButtons();
+      } catch (error) {
+        console.error('Errore caricando il GLB:', error);
+        setStatus(`Errore caricamento ${MODELS[index].url}. Verifica che il file esista e che il nome rispetti maiuscole/minuscole.`);
+      }
+    }
+
+    modelSelect.addEventListener('change', () => loadModel(Number(modelSelect.value)));
+
+    /* ===============================
+       ROTAZIONE, SCALA E RESET
+       =============================== */
+    function rotateModel(degrees) {
+      if (!modelAnchor) return;
+      modelAnchor.rotateY(THREE.MathUtils.degToRad(degrees));
+      setStatus(`Rotazione modello: ${Math.round(THREE.MathUtils.radToDeg(modelAnchor.rotation.y))}° sull'asse locale.`);
+    }
+
+    function setScale(value) {
+      if (!modelAnchor) return;
+      currentScale = THREE.MathUtils.clamp(value, 0.05, 5);
+      modelAnchor.scale.setScalar(currentScale);
+      setStatus(`Scala modello: ${currentScale.toFixed(2)}×`);
+    }
+
+    function changeScale(factor) {
+      setScale(currentScale * factor);
+    }
+
+    function resetModel() {
+      if (!modelAnchor) return;
+      setScale(1);
+      modelAnchor.rotation.set(0, 0, 0);
+      if (renderer.xr.isPresenting) {
+        // Il reset non sposta il modello in MR se era già collocato.
+        setStatus('Scala e rotazione ripristinate. Per cambiare posizione attiva “Sposta modello”.');
+      } else {
+        modelAnchor.position.set(0, 0, -1.5);
+        setStatus('Modello reimpostato nell’anteprima.');
+      }
+    }
+
+    function toggleAutoRotate() {
+      if (renderer.xr.isPresenting) autoRotateXR = !autoRotateXR;
+      else autoRotatePreview = !autoRotatePreview;
+      $('autoRotate').textContent = `Rotazione automatica: ${autoRotatePreview ? 'ON' : 'OFF'}`;
+      const button = panelButtons.find(b => b.userData.role === 'autoRotate');
+      if (button) button.userData.setLabel(`Auto: ${autoRotateXR ? 'ON' : 'OFF'}`);
+      setStatus(`Rotazione automatica ${renderer.xr.isPresenting ? 'XR' : 'anteprima'}: ${renderer.xr.isPresenting ? (autoRotateXR ? 'ON' : 'OFF') : (autoRotatePreview ? 'ON' : 'OFF')}.`);
+    }
+
+    function updateMoveButtonLabels() {
+      const label = `Sposta modello: ${placementMode ? 'ON' : 'OFF'}`;
+      const button = panelButtons.find(b => b.userData.role === 'moveMode');
+      if (button) button.userData.setLabel(label);
+    }
+
+    function togglePlacementMode() {
+      placementMode = !placementMode;
+      updateMoveButtonLabels();
+      setStatus(placementMode
+        ? 'Spostamento attivo: punta una superficie e fai pinch o premi select.'
+        : 'Spostamento disattivato. Il modello resta nella posizione attuale.');
+    }
+
+    $('rotateLeft').addEventListener('click', () => rotateModel(-15));
+    $('rotateRight').addEventListener('click', () => rotateModel(15));
+    $('bigger').addEventListener('click', () => changeScale(1.15));
+    $('smaller').addEventListener('click', () => changeScale(1 / 1.15));
+    $('reset').addEventListener('click', resetModel);
+    $('autoRotate').addEventListener('click', toggleAutoRotate);
+
+    /* Rotazione tramite trascinamento del mouse nell'anteprima desktop. */
+    let dragging = false;
+    let previousPointer = { x: 0, y: 0 };
+    renderer.domElement.addEventListener('pointerdown', event => {
+      if (renderer.xr.isPresenting || event.button !== 0) return;
+      dragging = true;
+      previousPointer = { x: event.clientX, y: event.clientY };
+      renderer.domElement.setPointerCapture?.(event.pointerId);
+    });
+    renderer.domElement.addEventListener('pointermove', event => {
+      if (!dragging || !modelAnchor || renderer.xr.isPresenting) return;
+      const dx = event.clientX - previousPointer.x;
+      const dy = event.clientY - previousPointer.y;
+      modelAnchor.rotation.y += dx * 0.009;
+      modelAnchor.rotation.x = THREE.MathUtils.clamp(modelAnchor.rotation.x + dy * 0.006, -Math.PI, Math.PI);
+      previousPointer = { x: event.clientX, y: event.clientY };
+    });
+    const stopDragging = () => { dragging = false; };
+    renderer.domElement.addEventListener('pointerup', stopDragging);
+    renderer.domElement.addEventListener('pointercancel', stopDragging);
+    renderer.domElement.addEventListener('lostpointercapture', stopDragging);
+
+    /* ===============================
+       PANNELLO SPAZIALE 3D PER LA MODALITÀ XR
+       Il pannello segue la vista dell'utente, quindi è sempre raggiungibile.
+       È una vera geometria Three.js: non dipende da un overlay DOM in XR.
+       =============================== */
+    const spatialPanel = new THREE.Group();
+    spatialPanel.visible = false;
+    scene.add(spatialPanel);
+
+    function createCanvasTexture(label, background = '#303440', foreground = '#ffffff') {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 192;
+      const context = canvas.getContext('2d');
+      context.fillStyle = background;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.strokeStyle = 'rgba(255,255,255,.45)';
+      context.lineWidth = 5;
+      context.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
+      let fontSize = 44;
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.font = `700 ${fontSize}px sans-serif`;
+      while (context.measureText(label).width > 460 && fontSize > 18) {
+        fontSize -= 2;
+        context.font = `700 ${fontSize}px sans-serif`;
+      }
+      context.fillStyle = foreground;
+      context.fillText(label, canvas.width / 2, canvas.height / 2);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.needsUpdate = true;
+      return texture;
+    }
+
+    function addPanelLabel(label, x, y, width = 0.5, height = 0.036) {
+      const texture = createCanvasTexture(label, '#191b24', '#f0b3c0');
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, height),
+        new THREE.MeshBasicMaterial({ map: texture, transparent: false, side: THREE.DoubleSide })
+      );
+      mesh.position.set(x, y, 0.001);
+      spatialPanel.add(mesh);
+      return mesh;
+    }
+
+    function addPanelButton(label, x, y, action, options = {}) {
+      const width = options.width ?? 0.145;
+      const height = options.height ?? 0.048;
+      const texture = createCanvasTexture(label, options.background ?? '#303440', options.foreground ?? '#ffffff');
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, height),
+        new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide })
+      );
+      mesh.position.set(x, y, 0.004);
+      mesh.userData.action = action;
+      mesh.userData.setLabel = (newLabel, background = options.background ?? '#303440') => {
+        const oldMap = mesh.material.map;
+        mesh.material.map = createCanvasTexture(newLabel, background, options.foreground ?? '#ffffff');
+        mesh.material.needsUpdate = true;
+        oldMap?.dispose();
+      };
+      if (options.role) mesh.userData.role = options.role;
+      if (options.part) mesh.userData.part = options.part;
+      if (Number.isInteger(options.colorIndex)) mesh.userData.colorIndex = options.colorIndex;
+      if (Number.isInteger(options.modelIndex)) mesh.userData.modelIndex = options.modelIndex;
+      spatialPanel.add(mesh);
+      panelButtons.push(mesh);
+      return mesh;
+    }
+
+    function addPanelPalette(palette, part, y) {
+      const shortLabels = palette.map(c => c.short || c.name);
+      const spacing = 0.106;
+      palette.forEach((color, index) => {
+        const x = (index - (palette.length - 1) / 2) * spacing;
+        const label = shortLabels[index];
+        const textColor = ['#c9c9c9', '#ffff0b'].includes(color.css) ? '#111111' : '#ffffff';
+        addPanelButton(label, x, y, () => applyPartColor(part, index), {
+          width: 0.098, height: 0.047, background: color.css,
+          foreground: textColor, part, colorIndex: index
+        });
+      });
+    }
+
+    function buildSpatialPanel() {
+      const background = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.80, 1.02),
+        new THREE.MeshBasicMaterial({ color: 0x151720, transparent: true, opacity: 0.97, side: THREE.DoubleSide })
+      );
+      background.position.z = -0.006;
+      spatialPanel.add(background);
+
+      addPanelLabel('ENDLESS LOVE', 0, 0.475, 0.54, 0.05);
+      addPanelLabel('SELEZIONA MODELLO', 0, 0.405, 0.55, 0.033);
+      MODELS.forEach((model, index) => {
+        const spacing = 0.22;
+        const x = (index - (MODELS.length - 1) / 2) * spacing;
+        addPanelButton(model.name, x, 0.35, () => loadModel(index), {
+          width: 0.205, height: 0.048, modelIndex: index, background: '#333848'
+        });
+      });
+
+      addPanelLabel('COLORE LETTERE', 0, 0.274, 0.48, 0.032);
+      addPanelPalette(LETTER_COLORS, 'letters', 0.222);
+      addPanelLabel('COLORE CUORE', 0, 0.151, 0.48, 0.032);
+      addPanelPalette(HEART_COLORS, 'heart', 0.099);
+
+      addPanelLabel('ANIMAZIONI', 0, 0.035, 0.42, 0.03);
+      addPanelButton('Anim. −', -0.22, -0.018, () => cycleAnimation(-1), { width: 0.15, height: 0.047 });
+      addPanelButton('Play', 0, -0.018, toggleAnimation, { width: 0.15, height: 0.047, background: '#a92f4d', role: 'play' });
+      addPanelButton('Anim. +', 0.22, -0.018, () => cycleAnimation(1), { width: 0.15, height: 0.047 });
+
+      addPanelButton('Ruota ↶', -0.19, -0.094, () => rotateModel(-15), { width: 0.18, height: 0.047 });
+      addPanelButton('Auto: OFF', 0, -0.094, toggleAutoRotate, { width: 0.18, height: 0.047, role: 'autoRotate' });
+      addPanelButton('Ruota ↷', 0.19, -0.094, () => rotateModel(15), { width: 0.18, height: 0.047 });
+
+      addPanelButton('Scala −', -0.13, -0.169, () => changeScale(1 / 1.15), { width: 0.19, height: 0.047 });
+      addPanelButton('Scala +', 0.13, -0.169, () => changeScale(1.15), { width: 0.19, height: 0.047 });
+      addPanelButton('Sposta modello: ON', -0.19, -0.245, togglePlacementMode, { width: 0.28, height: 0.047, role: 'moveMode', background: '#48536b' });
+      addPanelButton('Reset scala/rot.', 0.19, -0.245, resetModel, { width: 0.28, height: 0.047 });
+      addPanelLabel('Punta una superficie e fai pinch / select', 0, -0.34, 0.68, 0.036);
+    }
+    buildSpatialPanel();
+
+    function updateXRPaletteSelection(part, selectedIndex) {
+      panelButtons.forEach(button => {
+        if (button.userData.part !== part) return;
+        const selected = button.userData.colorIndex === selectedIndex;
+        button.scale.set(selected ? 1.12 : 1, selected ? 1.12 : 1, 1);
+      });
+    }
+
+    function updateSelectedModelButtons() {
+      panelButtons.forEach(button => {
+        if (!Number.isInteger(button.userData.modelIndex)) return;
+        const selected = button.userData.modelIndex === currentModelIndex;
+        button.scale.set(selected ? 1.08 : 1, selected ? 1.08 : 1, 1);
+      });
+    }
+
+    /* ===============================
+       WEBXR HAND TRACKING / CONTROLLER
+       L'evento WebXR "select" viene generato anche dal pinch delle mani
+       quando il browser espone le mani come input source della sessione.
+       =============================== */
+    function makeReticle(color = 0x5cffbd) {
+      const reticle = new THREE.Mesh(
+        new THREE.RingGeometry(0.045, 0.06, 36),
+        new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide })
+      );
+      reticle.matrixAutoUpdate = false;
+      reticle.visible = false;
+      scene.add(reticle);
+      return reticle;
+    }
+
+    function createPointerState(controller, inputSource) {
+      const previous = controller.userData.pointerState;
+      if (previous?.hitTestSource) {
+        try { previous.hitTestSource.cancel(); } catch (_) {}
+      }
+      if (previous?.reticle) {
+        scene.remove(previous.reticle);
+        previous.reticle.geometry.dispose();
+        previous.reticle.material.dispose();
+      }
+
+      const state = {
+        controller,
+        inputSource,
+        hitTestSource: null,
+        reticle: makeReticle(inputSource?.hand ? 0x65dcff : 0x5cffbd),
+        grabbing: false,
+        startedFromModel: false,
+        pressedOnUI: false,
+        pressedButton: null,
+        grabOffset: new THREE.Vector3()
+      };
+      controller.userData.pointerState = state;
+      pointerStates.set(controller, state);
+      requestPointerHitTest(state);
+      return state;
+    }
+
+    async function requestPointerHitTest(state) {
+      if (!xrSession || !state?.inputSource?.targetRaySpace) return;
+      if (state.hitTestSource) return;
+      try {
+        state.hitTestSource = await xrSession.requestHitTestSource({
+          space: state.inputSource.targetRaySpace
+        });
+      } catch (error) {
+        console.warn('Hit-test sul puntatore non disponibile; verrà usato il reticolo centrale se supportato.', error);
+      }
+    }
+
+    function removePointerState(controller) {
+      const state = controller.userData.pointerState;
+      if (!state) return;
+      try { state.hitTestSource?.cancel(); } catch (_) {}
+      scene.remove(state.reticle);
+      state.reticle.geometry.dispose();
+      state.reticle.material.dispose();
+      controller.userData.pointerState = null;
+      pointerStates.delete(controller);
+    }
+
+    function pointRayFromController(controller) {
+      controller.updateMatrixWorld(true);
+      tmpOrigin.setFromMatrixPosition(controller.matrixWorld);
+      controller.getWorldQuaternion(tmpQuaternion);
+      tmpDirection.set(0, 0, -1).applyQuaternion(tmpQuaternion).normalize();
+      raycaster.set(tmpOrigin, tmpDirection);
+    }
+
+    function onXRSelectStart(controller) {
+      if (!renderer.xr.isPresenting) return;
+      pointRayFromController(controller);
+      const state = controller.userData.pointerState;
+      if (state) {
+        state.grabbing = false;
+        state.startedFromModel = false;
+        state.pressedOnUI = false;
+        state.pressedButton = null;
+      }
+
+      // Un pinch iniziato su un pulsante è un'azione UI, non un trascinamento.
+      spatialPanel.updateMatrixWorld(true);
+      const uiHits = raycaster.intersectObjects(panelButtons, false);
+      if (uiHits.length) {
+        if (state) {
+          state.pressedOnUI = true;
+          state.pressedButton = uiHits[0].object;
+        }
+        return;
+      }
+
+      // Pinch-and-drag: se il modello è già collocato e l'utente pizzica il
+      // modello, lo può trascinare seguendo il reticolo della superficie.
+      // La rotazione e la scala rimangono invariate durante il trascinamento.
+      if (!state || !modelAnchor?.visible || !isPlaced || !state.reticle.visible) return;
+      const modelHits = raycaster.intersectObject(modelAnchor, true);
+      if (!modelHits.length) return;
+
+      tmpDragTarget.setFromMatrixPosition(state.reticle.matrix);
+      state.grabOffset.copy(modelAnchor.position).sub(tmpDragTarget);
+      state.grabbing = true;
+      state.startedFromModel = true;
+      setStatus('Modello agganciato: mantieni il pinch e muovi la mano per trascinarlo.');
+    }
+
+    function onXRSelect(controller) {
+      if (!renderer.xr.isPresenting) return;
+      const state = controller.userData.pointerState;
+      // Il select che segue un selectstart durante il pinch-and-drag non deve
+      // essere interpretato come un nuovo posizionamento.
+      if (state?.grabbing || state?.startedFromModel || state?.pressedOnUI) {
+        if (state?.pressedOnUI) {
+          // Attiva il pulsante su cui il pinch è iniziato, anche se il raggio
+          // oscilla leggermente prima del rilascio della mano.
+          const action = state.pressedButton?.userData?.action;
+          if (typeof action === 'function') action();
+        }
+        return;
+      }
+
+      pointRayFromController(controller);
+
+      // Prima controlla se il raggio colpisce un pulsante del pannello 3D.
+      spatialPanel.updateMatrixWorld(true);
+      const uiHits = raycaster.intersectObjects(panelButtons, false);
+      if (uiHits.length) {
+        const action = uiHits[0].object.userData.action;
+        if (typeof action === 'function') action();
+        return;
+      }
+
+      // Altrimenti, se lo spostamento è attivo, colloca il modello sulla
+      // superficie colpita dal puntatore (o sul reticolo centrale di fallback).
+      if (!placementMode) {
+        setStatus('Per riposizionare il modello, attiva “Sposta modello” oppure pizzica direttamente il modello e trascinalo.');
+        return;
+      }
+      if (!modelAnchor) {
+        setStatus('Attendi che il modello 3D sia caricato.');
+        return;
+      }
+
+      const targetReticle = state?.reticle?.visible ? state.reticle : (gazeReticle.visible ? gazeReticle : null);
+      if (!targetReticle) {
+        setStatus('Nessuna superficie rilevata. Muovi lentamente la mano o il controller per cercare una superficie.');
+        return;
+      }
+
+      modelAnchor.position.setFromMatrixPosition(targetReticle.matrix);
+      modelAnchor.quaternion.setFromRotationMatrix(targetReticle.matrix);
+      modelAnchor.visible = true;
+      isPlaced = true;
+      placementMode = false;
+      updateMoveButtonLabels();
+      setStatus('Modello posizionato. Puoi pizzicarlo e trascinarlo, oppure attivare “Sposta modello” per riposizionarlo su una superficie.');
+    }
+
+    function onXRSelectEnd(controller) {
+      const state = controller.userData.pointerState;
+      if (!state) return;
+      if (state.startedFromModel) {
+        setStatus('Modello spostato.');
+      }
+      state.grabbing = false;
+      state.startedFromModel = false;
+      state.pressedOnUI = false;
+      state.pressedButton = null;
+    }
+
+    // Due spazi XR: controller destro/sinistro oppure i corrispondenti input delle mani.
+    for (let i = 0; i < 2; i++) {
+      const controller = renderer.xr.getController(i);
+      controllers.push(controller);
+      scene.add(controller);
+
+      // Linea di puntamento visiva. Viene aggiornata insieme allo spazio input XR.
+      const rayLine = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, 0, -0.025),
+          new THREE.Vector3(0, 0, -1.5)
+        ]),
+        new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.72, depthTest: false })
+      );
+      rayLine.name = 'XRPointerRay';
+      controller.add(rayLine);
+
+      controller.addEventListener('connected', event => {
+        const inputSource = event.data;
+        if (inputSource) {
+          createPointerState(controller, inputSource);
+          setStatus(inputSource.hand
+            ? 'Mano rilevata: usa il pinch per selezionare e posizionare.'
+            : 'Controller rilevato: punta e premi il grilletto per selezionare.');
+        }
+      });
+
+      controller.addEventListener('disconnected', () => removePointerState(controller));
+      // I pinch delle mani diventano eventi select/selectstart/selectend se
+      // Meta Quest Browser espone l'input source con hand-tracking abilitato.
+      controller.addEventListener('selectstart', () => onXRSelectStart(controller));
+      controller.addEventListener('select', () => onXRSelect(controller));
+      controller.addEventListener('selectend', () => onXRSelectEnd(controller));
+    }
+
+    const gazeReticle = makeReticle(0xffd66b);
+
+    async function onSessionStart() {
+      xrSession = renderer.xr.getSession();
+      document.body.classList.add('xr');
+      spatialPanel.visible = true;
+      placementMode = true;
+      isPlaced = false;
+      if (modelAnchor) modelAnchor.visible = false;
+      updateMoveButtonLabels();
+      autoRotateXR = false;
+      const autoButton = panelButtons.find(b => b.userData.role === 'autoRotate');
+      autoButton?.userData.setLabel('Auto: OFF');
+
+      // Reticolo di fallback sulla direzione dello sguardo.
+      try {
+        const viewerSpace = await xrSession.requestReferenceSpace('viewer');
+        gazeHitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
+      } catch (error) {
+        gazeHitTestSource = null;
+        console.warn('Reticolo centrale non disponibile:', error);
+      }
+
+      // In alcune implementazioni gli eventi "connected" possono arrivare
+      // dopo sessionstart: ritenta hit-test per tutti i puntatori già noti.
+      for (const state of pointerStates.values()) requestPointerHitTest(state);
+      setStatus('Mixed Reality attiva. Punta una superficie e fai pinch o premi select per posizionare.');
+    }
+
+    function onSessionEnd() {
+      document.body.classList.remove('xr');
+      spatialPanel.visible = false;
+      // Rilascia i puntatori della sessione conclusa: verranno ricreati
+      // dagli eventi 'connected' quando si entra nuovamente in XR.
+      for (const controller of controllers) removePointerState(controller);
+      try { gazeHitTestSource?.cancel(); } catch (_) {}
+      gazeHitTestSource = null;
+      gazeReticle.visible = false;
+      xrSession = null;
+      placementMode = true;
+      autoRotateXR = false;
+      enterXRButton.disabled = false;
+      enterXRButton.textContent = 'Entra in Mixed Reality';
+      if (modelAnchor) {
+        modelAnchor.visible = true;
+        modelAnchor.position.set(0, 0, -1.5);
+        modelAnchor.quaternion.identity();
+      }
+      setStatus('Sessione Mixed Reality terminata.');
+    }
+
+    renderer.xr.addEventListener('sessionstart', onSessionStart);
+    renderer.xr.addEventListener('sessionend', onSessionEnd);
+
+    function startXR() {
+      if (!navigator.xr) {
+        setStatus('Questo browser non espone WebXR. Apri la pagina da Meta Quest Browser su HTTPS.');
+        return;
+      }
+      if (!xrSupported) {
+        setStatus('Il browser non ha confermato il supporto immersive-ar. Aggiorna Meta Quest Browser e riprova.');
+        return;
+      }
+
+      enterXRButton.disabled = true;
+      enterXRButton.textContent = 'Richiesta sessione XR…';
+      setStatus('Richiedo la sessione Mixed Reality al browser…');
+
+      // IMPORTANTE: requestSession viene chiamata subito nel gesto del clic.
+      // Non attendere isSessionSupported() qui: un await prima di requestSession
+      // può far scadere l'attivazione utente richiesta da WebXR.
+      let sessionPromise;
+      try {
+        sessionPromise = navigator.xr.requestSession('immersive-ar', {
+          requiredFeatures: ['hit-test'],
+          optionalFeatures: ['hand-tracking']
+        });
+      } catch (error) {
+        handleXRError(error);
+        return;
+      }
+
+      sessionPromise.then(async (newSession) => {
+        setStatus('Sessione XR ottenuta. Inizializzo il renderer immersivo…');
+        try {
+          await renderer.xr.setSession(newSession);
+          enterXRButton.textContent = 'Mixed Reality attiva';
+          setStatus('Mixed Reality avviata. Punta una superficie e usa pinch o grilletto per posizionare il modello.');
+        } catch (error) {
+          // Se Three.js non riesce ad agganciare la sessione, evita di lasciare
+          // una sessione immersiva aperta a metà.
+          try { await newSession.end(); } catch (_) {}
+          handleXRError(error);
+        }
+      }).catch(handleXRError);
+    }
+
+    function handleXRError(error) {
+      console.error('Impossibile avviare WebXR:', error);
+      const name = error?.name ? `${error.name}: ` : '';
+      const message = error?.message || String(error);
+      setStatus(`Avvio Mixed Reality non riuscito (${name}${message}). Verifica i permessi del browser e riprova. Se persiste, chiudi e riapri la scheda di Meta Quest Browser.`);
+      enterXRButton.disabled = false;
+      enterXRButton.textContent = 'Riprova Mixed Reality';
+    }
+
+    enterXRButton.addEventListener('click', startXR);
+
+    async function checkXRSupport() {
+      xrSupported = false;
+      if (!window.isSecureContext) {
+        enterXRButton.disabled = true;
+        enterXRButton.textContent = 'Richiesto HTTPS';
+        setStatus('La pagina deve essere pubblicata con HTTPS, per esempio tramite GitHub Pages.');
+        return;
+      }
+      if (!navigator.xr) {
+        enterXRButton.disabled = true;
+        enterXRButton.textContent = 'Apri in Meta Quest Browser';
+        setStatus('WebXR non disponibile in questo browser. Su Quest usa Meta Quest Browser; su computer puoi usare l’anteprima 3D.');
+        return;
+      }
+      try {
+        xrSupported = await navigator.xr.isSessionSupported('immersive-ar');
+        enterXRButton.disabled = !xrSupported;
+        enterXRButton.textContent = xrSupported ? 'Entra in Mixed Reality' : 'Mixed Reality non supportata';
+        if (xrSupported) setStatus('Browser compatibile con immersive-ar. Carica il modello e premi il pulsante per entrare.');
+        else setStatus('Il browser non supporta immersive-ar in questa sessione. Verifica di essere nel Meta Quest Browser e aggiorna il browser.');
+      } catch (error) {
+        xrSupported = false;
+        enterXRButton.disabled = true;
+        enterXRButton.textContent = 'Verifica supporto XR non riuscita';
+        setStatus(`Verifica WebXR fallita: ${error?.message || error}. Prova da Meta Quest Browser aggiornato.`);
+      }
+    }
+
+    /* ===============================
+       CICLO DI RENDERING
+       =============================== */
+    function updateSpatialPanelPose() {
+      if (!renderer.xr.isPresenting) return;
+      const xrCamera = renderer.xr.getCamera(camera);
+      spatialPanel.position.copy(xrCamera.position);
+      spatialPanel.quaternion.copy(xrCamera.quaternion);
+      tmpOffset.set(0, -0.12, -0.78).applyQuaternion(spatialPanel.quaternion);
+      spatialPanel.position.add(tmpOffset);
+      spatialPanel.updateMatrixWorld(true);
+    }
+
+    function updateHitTest(frame) {
+      if (!frame || !xrSession) return;
+      const referenceSpace = renderer.xr.getReferenceSpace();
+      if (!referenceSpace) return;
+
+      for (const state of pointerStates.values()) {
+        if (!state.hitTestSource) {
+          state.reticle.visible = false;
+          continue;
+        }
+        const hits = frame.getHitTestResults(state.hitTestSource);
+        if (hits.length) {
+          const pose = hits[0].getPose(referenceSpace);
+          if (pose) {
+            state.reticle.visible = true;
+            state.reticle.matrix.fromArray(pose.transform.matrix);
+            // Durante il pinch-and-drag il modello segue la posizione rilevata
+            // sulla superficie, mantenendo l'offset iniziale della presa.
+            if (state.grabbing && modelAnchor) {
+              tmpDragTarget.setFromMatrixPosition(state.reticle.matrix);
+              modelAnchor.position.copy(tmpDragTarget).add(state.grabOffset);
+            }
+          }
+        } else {
+          state.reticle.visible = false;
+        }
+      }
+
+      if (gazeHitTestSource) {
+        const hits = frame.getHitTestResults(gazeHitTestSource);
+        if (hits.length) {
+          const pose = hits[0].getPose(referenceSpace);
+          if (pose) {
+            gazeReticle.visible = true;
+            gazeReticle.matrix.fromArray(pose.transform.matrix);
+          }
+        } else {
+          gazeReticle.visible = false;
+        }
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    renderer.setAnimationLoop((_, frame) => {
+      const delta = Math.min(clock.getDelta(), 0.05);
+      if (mixer) mixer.update(delta);
+
+      if (modelAnchor) {
+        if (renderer.xr.isPresenting && autoRotateXR && isPlaced) {
+          modelAnchor.rotateY(delta * 0.35);
+        } else if (!renderer.xr.isPresenting && autoRotatePreview) {
+          modelAnchor.rotateY(delta * 0.24);
+        }
+      }
+
+      if (renderer.xr.isPresenting) {
+        updateHitTest(frame);
+        updateSpatialPanelPose();
+      }
+      renderer.render(scene, camera);
+    });
+
+    // Il caricamento del modello è indipendente dalla disponibilità di WebXR.
+    await loadModel(0);
+    await checkXRSupport();
+  </script>
+</body>
+</html>
