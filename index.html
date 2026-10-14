@@ -1,200 +1,585 @@
 Viva Il Vostro Amore!
 <!DOCTYPE html>
-<html>
+<html lang="it">
 <head>
-<meta charset="utf-8">
-<title>Endless Love</title>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1">
+  <title>Endless Love XR</title>
 
-<!-- Model Viewer -->
-<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101114;
+      --panel: rgba(24, 26, 32, .94);
+      --accent: #d94b65;
+      --text: #f5f5f7;
+      --muted: #a5a7b0;
+    }
 
-<style>
-body {
-margin: 0;
-background: #000;
-display: flex;
-flex-direction: column;
-align-items: center;
-color: white;
-font-family: sans-serif;
-}
+    * { box-sizing: border-box; }
 
-model-viewer {
-width: 95vw;
-height: 75vh;
-}
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, sans-serif;
+    }
 
-/* Pulsante AR grande */
-model-viewer::part(default-ar-button) {
-width: 100px;
-height: 100px;
-border-radius: 50%;
-background-color: white;
-color: black;
-font-size: 2rem;
-}
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
 
-/* Pulsante Play / Pause */
-#animBtn {
-margin: 10px;
-padding: 12px 24px;
-font-size: 1.1rem;
-border-radius: 12px;
-border: none;
-cursor: pointer;
-background: #444;
-color: white;
-}
+    #ui {
+      position: fixed;
+      z-index: 2;
+      top: 16px;
+      left: 16px;
+      width: min(340px, calc(100vw - 32px));
+      max-height: calc(100dvh - 32px);
+      overflow-y: auto;
+      padding: 18px;
+      border: 1px solid #ffffff20;
+      border-radius: 20px;
+      background: var(--panel);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 12px 40px #0005;
+    }
 
-/* Dropdown animazioni */
-#animSelect {
-padding: 10px;
-font-size: 1rem;
-border-radius: 10px;
-margin-bottom: 10px;
-}
+    h1 {
+      margin: 0;
+      font-size: 23px;
+      letter-spacing: 1px;
+    }
 
-/* Contenitore controlli */
-.controls-section {
-display: flex;
-align-items: center;
-margin: 10px 0; /*Distanza tra una colonna titoli e l'altra in verticale */
-width: 95vw;
-}
+    .subtitle {
+      color: var(--muted);
+      font-size: 12px;
+      margin: 5px 0 18px;
+    }
 
-.controls-section h3 {
-margin-right: 15px;
-font-size: 1.5rem;
-min-width: 160px;
-}
+    label {
+      display: block;
+      margin: 15px 0 7px;
+      color: var(--muted);
+      font-size: 12px;
+    }
 
-.controls {
-display: flex;
-flex-wrap: wrap;
-gap: 10px;
-}
+    select, button {
+      font: inherit;
+      border-radius: 11px;
+      border: 1px solid #ffffff20;
+      padding: 11px;
+    }
 
-  button {
-      padding: 10px 20px;
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-      font-size: 1rem;
+    select {
+      width: 100%;
       color: white;
-      min-width: 80px;
+      background: #292b33;
+    }
+
+    button {
+      color: white;
+      background: #30323a;
+      cursor: pointer;
+    }
+
+    button:active { transform: scale(.98); }
+
+    .primary {
+      width: 100%;
+      margin-top: 12px;
+      border: 0;
+      background: var(--accent);
+      font-weight: 700;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .row button { flex: 1; }
+
+    .swatch {
+      min-width: 42px;
+      width: 42px;
+      height: 42px;
+      padding: 0;
+      border-radius: 50%;
+      border: 2px solid #ffffff50;
+    }
+
+    #status {
+      margin-top: 14px;
+      color: #b7e8cb;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    #ar-button {
+      position: fixed;
+      z-index: 3;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 0;
+      border-radius: 30px;
+      background: var(--accent);
+      padding: 15px 24px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    #ar-button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    body.xr #ui {
+      /* In XR, the user can still use the headset
+         controller to position the model. */
+      display: none;
+    }
+
+    body.xr #ar-button {
+      display: none;
+    }
+
+    @media (max-width: 600px) {
+      #ui {
+        top: 8px;
+        left: 8px;
+        width: 245px;
+        padding: 12px;
+      }
+    }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+    }
   }
-
-.green { background: green; }
-.blue { background: blue; }
-.yellow { background: yellow; color: gray;}
-.lightgray { background: lightgray; color: black; }
-.darkgray { background: dimgray; }
-.red { background: red; }
-.orange { background: orange; color: white;}
-</style>
+  </script>
 </head>
+
 <body>
+  <section id="ui">
+    <h1>ENDLESS LOVE</h1>
+    <p class="subtitle">IMMERSIVE MIXED REALITY</p>
 
-<!-- MODEL VIEWER -->
-<model-viewer id="viewer"
-src="heart.glb"
-ar
-ar-modes="webxr scene-viewer quick-look"
-camera-controls
-auto-rotate
-shadow-intensity="0"
-exposure="0.5"
-alt="ASSIEME 3D Model">
-</model-viewer>
+    <label for="model-select">Modello 3D</label>
+    <select id="model-select"></select>
 
-<!-- SELECT ANIMAZIONE -->
-<select id="animSelect" onchange="selectAnimation()">
-<option disabled selected>Seleziona animazione</option>
-</select>
+    <label>Colore</label>
+    <div class="row">
+      <button class="swatch" data-color="#d62845"
+              style="background:#d62845" aria-label="Rosso"></button>
+      <button class="swatch" data-color="#2364db"
+              style="background:#2364db" aria-label="Blu"></button>
+      <button class="swatch" data-color="#e8c547"
+              style="background:#e8c547" aria-label="Giallo"></button>
+      <button class="swatch" data-color="#eeeeee"
+              style="background:#eeeeee" aria-label="Bianco"></button>
+      <button class="swatch" data-color="#159957"
+              style="background:#159957" aria-label="Verde"></button>
+    </div>
 
-<!-- PLAY / PAUSE -->
-<button id="animBtn" onclick="toggleAnimation()">
-▶ Play animation
-</button>
+    <label for="animation-select">Animazione</label>
+    <select id="animation-select">
+      <option value="">Nessuna animazione</option>
+    </select>
 
-<!-- Prima fila: STRUCTURE COLOR -->
-<div class="controls-section">
-<h3>Colore Lettere</h3>
-<div class="controls">
-<button class="color green" onclick="changeColor(0, [0, 0.1, 0, 1])">Verde</button>
-<button class="color blue" onclick="changeColor(0, [0, 0, 0.18, 1])">Blu</button>
-<button class="color orange" onclick="changeColor(0, [1, 0.12, 0, 1])">Arancio</button>
-<button class="color lightgray" onclick="changeColor(0, [0.55, 0.55, 0.55, 1])">Grigio chiaro</button>
-<button class="color darkgray" onclick="changeColor(0, [0.25, 0.25, 0.25, 1])">Grigio scuro</button>
-<button class="color red" onclick="changeColor(0, [0.22, 0, 0, 1])">Rosso</button>
-</div>
-</div>
+    <div class="row" style="margin-top:10px">
+      <button id="play">▶ Play</button>
+      <button id="reset">⟲ Reset</button>
+    </div>
 
-<!-- MOBILE PARTS COLOR -->
-<div class="controls-section">
-<h3>Colore Cuore</h3>
-<div class="controls">
-<button class="color green" onclick="changeColor(1, [0, 0.1, 0, 1])">Verde</button>
-<button class="color blue" onclick="changeColor(1, [0, 0, 1, 1])">Blu</button>
-<button class="color yellow" onclick="changeColor(1, [1, 1, 0, 1])">Giallo</button>
-<button class="color lightgray" onclick="changeColor(1, [0.55, 0.55, 0.55, 1])">Grigio chiaro</button>
-<button class="color darkgray" onclick="changeColor(1, [0.33, 0.33, 0.33, 1])">Grigio scuro</button>
-<button class="color red" onclick="changeColor(1, [1, 0, 0, 1])">Rosso</button>
-</div>
-</div>
+    <label>Dimensione modello</label>
+    <div class="row">
+      <button id="smaller">−</button>
+      <button id="bigger">+</button>
+    </div>
 
-<!-- SCRIPT -->
-<script>
-const modelViewer = document.querySelector('#viewer');
-const animBtn = document.getElementById('animBtn');
-const animSelect = document.getElementById('animSelect');
+    <button id="place-preview" style="width:100%;margin-top:10px">
+      Ricentra anteprima
+    </button>
 
-/* Carica animazioni */
-modelViewer.addEventListener('load', () => {
-const animations = modelViewer.availableAnimations;
+    <div id="status">Inizializzazione scena 3D…</div>
+  </section>
 
-animations.forEach(anim => {
-const option = document.createElement('option');
-option.value = anim;
-option.textContent = anim;
-animSelect.appendChild(option);
-});
+  <button id="ar-button" disabled>
+    Caricamento 3D…
+  </button>
 
-if (animations.length > 0) {
-modelViewer.animationName = animations[0];
-}
-});
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { ARButton } from 'three/addons/webxr/ARButton.js';
 
-/* Play / Pause */
-function toggleAnimation() {
-if (modelViewer.paused) {
-modelViewer.play();
-animBtn.textContent = "⏸ Pause animation";
-} else {
-modelViewer.pause();
-animBtn.textContent = "▶ Play animation";
-}
-}
+    // PERSONALIZZA QUESTI PERCORSI
+    const MODELS = [
+      { name: 'Cuore', url: './models/heart.glb' },
+      { name: 'Modello 2', url: './models/modello2.glb' },
+      { name: 'Modello 3', url: './models/modello3.glb' }
+    ];
 
-/* Cambio animazione */
-function selectAnimation() {
-modelViewer.pause();
-modelViewer.animationName = animSelect.value;
-modelViewer.play();
-animBtn.textContent = "⏸ Pause animation";
-}
+    const status = document.querySelector('#status');
+    const arButton = document.querySelector('#ar-button');
+    const modelSelect = document.querySelector('#model-select');
+    const animationSelect = document.querySelector('#animation-select');
 
-/* Cambio colore materiali */
-function changeColor(materialIndex, rgba) {
-const material = modelViewer.model.materials[materialIndex];
-if (material && material.pbrMetallicRoughness) {
-material.pbrMetallicRoughness.setBaseColorFactor(rgba);
-}
-}
-</script>
+    const scene = new THREE.Scene();
 
+    const camera = new THREE.PerspectiveCamera(
+      55, innerWidth / innerHeight, 0.01, 100
+    );
+    camera.position.set(0, 0, 2.5);
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: 'high-performance'
+    });
+
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1;
+    renderer.xr.enabled = true;
+
+    document.body.appendChild(renderer.domElement);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x777788, 2));
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2);
+    keyLight.position.set(2, 4, 3);
+    scene.add(keyLight);
+
+    const loader = new GLTFLoader();
+
+    let currentRoot = null;
+    let mixer = null;
+    let actions = [];
+    let selectedAction = null;
+    let currentScale = 1;
+    let hitTestSource = null;
+    let hitTestRequested = false;
+    let placed = false;
+    let xrSession = null;
+
+    const reticle = new THREE.Mesh(
+      new THREE.RingGeometry(0.09, 0.115, 40),
+      new THREE.MeshBasicMaterial({ color: 0x55ffbb })
+    );
+
+    reticle.rotation.x = -Math.PI / 2;
+    reticle.matrixAutoUpdate = false;
+    reticle.visible = false;
+    scene.add(reticle);
+
+    // Il modello è caricato una sola volta alla selezione.
+    async function loadModel(index) {
+      const item = MODELS[index];
+
+      status.textContent = `Caricamento: ${item.name}…`;
+
+      if (currentRoot) {
+        scene.remove(currentRoot);
+        disposeModel(currentRoot);
+        currentRoot = null;
+      }
+
+      mixer = null;
+      actions = [];
+      selectedAction = null;
+      placed = false;
+      currentScale = 1;
+
+      animationSelect.replaceChildren(
+        new Option('Nessuna animazione', '')
+      );
+
+      try {
+        const gltf = await loader.loadAsync(item.url);
+        currentRoot = gltf.scene;
+
+        currentRoot.scale.setScalar(currentScale);
+
+        // Illuminazione e materiali sono quelli del GLB.
+        // Evitiamo di sovrascriverli automaticamente.
+
+        scene.add(currentRoot);
+
+        if (gltf.animations.length) {
+          mixer = new THREE.AnimationMixer(currentRoot);
+
+          gltf.animations.forEach((clip, i) => {
+            const option = new Option(clip.name || `Animazione ${i + 1}`, String(i));
+            animationSelect.add(option);
+            actions.push(mixer.clipAction(clip));
+          });
+
+          selectedAction = actions[0] || null;
+          if (selectedAction) {
+            animationSelect.value = '0';
+          }
+        }
+
+        if (renderer.xr.isPresenting) {
+          // In MR il modello compare dopo il posizionamento.
+          currentRoot.visible = false;
+        } else {
+          // Anteprima desktop.
+          currentRoot.visible = true;
+          currentRoot.position.set(0, 0, -1.5);
+        }
+
+        status.textContent =
+          `${item.name} pronto · ${gltf.animations.length} animazioni`;
+
+      } catch (error) {
+        console.error(error);
+        status.textContent =
+          `Errore nel caricamento di ${item.url}. Controlla il percorso e il nome del file.`;
+      }
+    }
+
+    function disposeModel(root) {
+      root.traverse(object => {
+        if (!object.isMesh) return;
+
+        object.geometry.dispose();
+
+        // Non distruggere texture/materiali condivisi con
+        // altre scene senza una gestione dedicata degli asset.
+        const materials = Array.isArray(object.material)
+          ? object.material
+          : [object.material];
+
+        materials.forEach(material => material?.dispose());
+      });
+    }
+
+    function setColor(hex) {
+      if (!currentRoot) return;
+
+      const color = new THREE.Color(hex);
+
+      currentRoot.traverse(object => {
+        if (!object.isMesh) return;
+
+        const materials = Array.isArray(object.material)
+          ? object.material
+          : [object.material];
+
+        materials.forEach(material => {
+          if (material?.color) {
+            material.color.copy(color);
+          }
+        });
+      });
+    }
+
+    function setAnimation(index) {
+      if (!mixer) return;
+
+      if (selectedAction) selectedAction.stop();
+
+      selectedAction = index === '' ? null : actions[Number(index)];
+
+      if (selectedAction) {
+        selectedAction.reset().play();
+      }
+    }
+
+    function setScale(value) {
+      currentScale = THREE.MathUtils.clamp(value, 0.1, 5);
+
+      if (currentRoot) {
+        currentRoot.scale.setScalar(currentScale);
+      }
+    }
+
+    MODELS.forEach((item, index) => {
+      modelSelect.add(new Option(item.name, String(index)));
+    });
+
+    modelSelect.addEventListener('change', () => {
+      loadModel(Number(modelSelect.value));
+    });
+
+    document.querySelectorAll('[data-color]').forEach(button => {
+      button.addEventListener('click', () => {
+        setColor(button.dataset.color);
+      });
+    });
+
+    animationSelect.addEventListener('change', () => {
+      setAnimation(animationSelect.value);
+    });
+
+    document.querySelector('#play').addEventListener('click', () => {
+      if (!mixer || !actions.length) return;
+
+      if (selectedAction && selectedAction.isRunning()) {
+        selectedAction.paused = !selectedAction.paused;
+      } else {
+        selectedAction = actions[0];
+        animationSelect.value = String(actions.indexOf(selectedAction));
+        selectedAction.reset().play();
+      }
+    });
+
+    document.querySelector('#smaller').addEventListener('click', () => {
+      setScale(currentScale / 1.15);
+    });
+
+    document.querySelector('#bigger').addEventListener('click', () => {
+      setScale(currentScale * 1.15);
+    });
+
+    document.querySelector('#reset').addEventListener('click', () => {
+      setScale(1);
+
+      if (selectedAction) {
+        selectedAction.reset().play();
+      }
+    });
+
+    document.querySelector('#place-preview').addEventListener('click', () => {
+      if (currentRoot && !renderer.xr.isPresenting) {
+        currentRoot.position.set(0, 0, -1.5);
+      }
+    });
+
+    // WebXR AR: il browser deve supportare immersive-ar
+    // e la funzionalità hit-test richiesta.
+    const arSupported = navigator.xr
+      ? await navigator.xr.isSessionSupported('immersive-ar').catch(() => false)
+      : false;
+
+    if (arSupported) {
+      const button = ARButton.createButton(renderer, {
+        requiredFeatures: ['hit-test'],
+        optionalFeatures: ['dom-overlay'],
+        domOverlay: { root: document.body }
+      });
+
+      button.id = 'generated-ar-button';
+      button.textContent = 'Entra in Mixed Reality';
+
+      arButton.replaceWith(button);
+
+      button.addEventListener('click', () => {
+        status.textContent = 'Avvio sessione Mixed Reality…';
+      });
+    } else {
+      arButton.disabled = true;
+      arButton.textContent = 'AR non supportata in questo browser';
+      status.textContent =
+        'Puoi provare l’anteprima 3D. La sessione AR non è disponibile.';
+    }
+
+    renderer.xr.addEventListener('sessionstart', async () => {
+      document.body.classList.add('xr');
+      xrSession = renderer.xr.getSession();
+      placed = false;
+
+      if (currentRoot) currentRoot.visible = false;
+
+      try {
+        const viewerSpace = await xrSession.requestReferenceSpace('viewer');
+        hitTestSource = await xrSession.requestHitTestSource({
+          space: viewerSpace
+        });
+        hitTestRequested = true;
+        status.textContent =
+          'Punta verso una superficie e premi il grilletto per posizionare.';
+      } catch (error) {
+        console.error(error);
+        status.textContent =
+          'Hit-test non disponibile. Verifica le funzionalità WebXR del browser.';
+      }
+
+      // Selezione tramite controller XR.
+      xrSession.addEventListener('select', () => {
+        if (!reticle.visible || !currentRoot) return;
+
+        currentRoot.position.setFromMatrixPosition(reticle.matrix);
+        currentRoot.quaternion.setFromRotationMatrix(reticle.matrix);
+        currentRoot.visible = true;
+        placed = true;
+
+        status.textContent = 'Modello posizionato nello spazio reale.';
+      });
+    });
+
+    renderer.xr.addEventListener('sessionend', () => {
+      document.body.classList.remove('xr');
+
+      if (hitTestSource) hitTestSource.cancel();
+
+      hitTestSource = null;
+      hitTestRequested = false;
+      xrSession = null;
+      reticle.visible = false;
+      placed = false;
+
+      if (currentRoot) {
+        currentRoot.visible = true;
+        currentRoot.position.set(0, 0, -1.5);
+        currentRoot.quaternion.identity();
+      }
+
+      status.textContent = 'Sessione terminata.';
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    const clock = new THREE.Clock();
+
+    renderer.setAnimationLoop((_, frame) => {
+      const delta = Math.min(clock.getDelta(), 0.05);
+
+      if (mixer) mixer.update(delta);
+
+      if (frame && hitTestRequested && hitTestSource) {
+        const referenceSpace = renderer.xr.getReferenceSpace();
+        const results = frame.getHitTestResults(hitTestSource);
+
+        if (results.length && !placed) {
+          const pose = results[0].getPose(referenceSpace);
+
+          if (pose) {
+            reticle.visible = true;
+            reticle.matrix.fromArray(pose.transform.matrix);
+          }
+        } else {
+          reticle.visible = false;
+        }
+      }
+
+      renderer.render(scene, camera);
+    });
+
+    await loadModel(0);
+  </script>
 </body>
-
 </html>
 
 
